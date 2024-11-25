@@ -8,6 +8,7 @@ import os
 import sys
 
 
+# Set the base directory
 def get_base_dir():
 
     # Determine the directory of the executable or script
@@ -21,9 +22,9 @@ def get_base_dir():
     return base_dir
 
 
+# Get the file path of a user specified file and check it exists
 def file_checker(file_type: str, base_dir: Path) -> Path:
 
-    # Get the name of the file and check it exists
     file_path = None
     while file_path is None:
         file_path = Path(
@@ -40,17 +41,21 @@ def file_checker(file_type: str, base_dir: Path) -> Path:
             file_path = None
 
 
-def get_data(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
+# Get the two data files which will correspond to each axis of the heatmap
+def get_data(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame, str, str]:
 
-    metadata = file_checker("metadata.xlxs", base_dir)
-    measured_data = file_checker("measured_data.xlxs", base_dir)
+    metadata = file_checker("x axis data e.g.metadata.xlxs", base_dir)
+    x_axis_label = input("Please enter the x axis label: ")
+    measured_data = file_checker("y axis data e.g.measured_data.xlxs", base_dir)
+    y_axis_label = input("Please enter the y axis label: ")
 
     metadata_df = pd.read_excel(metadata)
     measured_data_df = pd.read_excel(measured_data)
 
-    return metadata_df, measured_data_df
+    return metadata_df, measured_data_df, x_axis_label, y_axis_label
 
 
+# Check the first column of both dataframes is the same
 def check_sample_match(
     metadata_df: pd.DataFrame, measured_data_df: pd.DataFrame
 ):
@@ -68,8 +73,9 @@ def check_sample_match(
         sys.exit("Exiting the program")
 
 
+# Calculate the pearson correlation and corresponding p values
 def calculate_correlation_and_pvalue(
-    measured_data_df: pd.DataFrame, metadata_df: pd.DataFrame
+    measured_data_df: pd.DataFrame, metadata_df: pd.DataFrame, base_dir: Path
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     # Initialize DataFrames with appropriate indices and columns
     correlation_df = pd.DataFrame(
@@ -99,63 +105,89 @@ def calculate_correlation_and_pvalue(
                 correlation_df.loc[data_col_1, meta_col_1] = None
                 p_value_df.loc[data_col_1, meta_col_1] = None
 
-    # Replace None with NaN for correlation_df
     # Replace None with NaN and convert to float
     correlation_df = correlation_df.apply(pd.to_numeric, errors="coerce")
+
+    os.makedirs(f"{base_dir}/corr_plot_outputs/", exist_ok=True)
+
+    correlation_df.to_csv(f"{base_dir}/corr_plot_outputs/correlation_data.csv")
+    print("Created correlation_plot_csv.")
+
+    p_value_df.to_csv(f"{base_dir}/corr_plot_outputs/p_value_data.csv")
+    print("Created p_value_data_csv.")
 
     return correlation_df, p_value_df
 
 
-def p_val_sig_figs(p_value_df: pd.DataFrame) -> pd.DataFrame:
+# Create p value indicators using *'s
+def p_val_indicator(p_value_df: pd.DataFrame) -> pd.DataFrame:
 
+    # Convert all values to numeric types
+    p_value_df = p_value_df.apply(pd.to_numeric, errors="coerce")
+
+    # Apply the lambda function to handle the conditions
     p_value_annotations = p_value_df.apply(
         lambda x: x.map(
-            lambda y: f"{y:.3g}" if isinstance(y, (int, float)) else y
+            lambda y: (
+                "***"
+                if y <= 0.001
+                else "**" if y <= 0.01 else "*" if y <= 0.05 else ""
+            )
         )
     )
 
     return p_value_annotations
 
 
+# Plot the heatmap
 def plot_pearson_correlation_heatmap(
-    correlation_df: pd.DataFrame, p_value_annotations: pd.DataFrame
+    correlation_df: pd.DataFrame,
+    p_value_annotations: pd.DataFrame,
+    x_axis_label: str,
+    y_axis_label: str,
+    base_dir: Path,
 ):
 
-    plt.figure(figsize=(10, 8))
+    # Dynamically adjust the figure size based on the number of rows and columns
+    num_rows, num_cols = correlation_df.shape
+    col_size = num_cols * 0.8
+    row_size = num_rows * 0.8
+
+    figsize = (
+        col_size if col_size > 10 else 10,
+        row_size if row_size > 8 else 8,
+    )  # Adjust the scaling factor as needed
+
+    plt.figure(figsize=figsize)
     heatmap = sns.heatmap(
         correlation_df,
         annot=p_value_annotations,
         cmap="coolwarm",
         fmt="",
         linewidths=0.5,
-        annot_kws={"size": 10},
+        annot_kws={"size": 12},
     )
 
     # Label the axes
-    plt.xlabel("Metadata Classes", labelpad=10)
-    plt.ylabel("Lipid Classes")
+    plt.xlabel(x_axis_label, labelpad=10)
+    plt.ylabel(y_axis_label)
 
     # Label the color scale
     cbar = heatmap.collections[0].colorbar
     cbar.set_label("Pearson Correlation Coefficient")
 
-    # Add a note at the bottom
-    plt.figtext(
-        0.5,
-        0.01,
-        "*p-values of the pearson correlation coefficients are displayed in the heatmap (p < 0.05 indicates statistical significance).",
-        ha="center",
-        fontsize=7,
-    )
-
     # Adjust the layout to ensure the note is visible
     plt.subplots_adjust(bottom=0.1, left=0.2)
 
     plt.title("Pearson Correlation Heatmap")
-    plt.savefig(f"pearson_corr_heatmap.png")
+    plt.savefig(
+        f"{base_dir}/corr_plot_outputs/pearson_corr_heatmap.png",
+        bbox_inches="tight",
+    )
     print("Heatmap Plotted Successfully.")
 
 
+# Run the script
 def main():
 
     # Your program logic here
@@ -163,17 +195,25 @@ def main():
 
     base_dir = get_base_dir()
 
-    metadata_df, measured_data_df = get_data(base_dir)
+    metadata_df, measured_data_df, x_axis_label, y_axis_label = get_data(
+        base_dir
+    )
 
     check_sample_match(metadata_df, measured_data_df)
 
     correlation_df, p_value_df = calculate_correlation_and_pvalue(
-        measured_data_df, metadata_df
+        measured_data_df, metadata_df, base_dir
     )
 
-    p_value_annotations = p_val_sig_figs(p_value_df)
+    p_value_annotations = p_val_indicator(p_value_df)
 
-    plot_pearson_correlation_heatmap(correlation_df, p_value_annotations)
+    plot_pearson_correlation_heatmap(
+        correlation_df,
+        p_value_annotations,
+        x_axis_label,
+        y_axis_label,
+        base_dir,
+    )
 
     # Exit the program
     sys.exit("Exiting the program")
