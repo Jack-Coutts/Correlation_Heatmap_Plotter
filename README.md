@@ -15,6 +15,7 @@ Take the two spreasheets containing fake data below as examples:
 Spreadsheet1.xlsx
 
 | People | Age | Height | Weight | Arm Length |
+| ----- | ----- | ----- | ----- | ----- |
 | John | 45 | 174 | 75 | 70 |
 | Jane | 13 | 130 | 50 | 50 |
 | Fred | 25 | 184 | 88 | 78 |
@@ -25,6 +26,7 @@ Spreadsheet1.xlsx
 Spreadsheet2.xlsx
 
 | People | Vitamin C | Vitamin D | Vitamin E | Vitamin K |
+| ----- | ----- | ----- | ----- | ----- |
 | John | 145 | 154 | 295 | 332 |
 | Jane | 131 | 1430 | 540 | 350 |
 | Fred | 253 | 1834 | 488 | 748 |
