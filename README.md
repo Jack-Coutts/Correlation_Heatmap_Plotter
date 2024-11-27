@@ -1,6 +1,6 @@
 # Correlation Heatmap Plotter
 
-This [Python](https://www.python.org/) program uses [scipy's](https://scipy.org/) [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) function to calculate the Pearson correlation coefficients and corresponding p values to describe the correlation between two sets of features. These values are then used to generate a Correlation Heatmap with [seaborn](https://seaborn.pydata.org/) and [matplotlib](https://matplotlib.org/). 
+This [Python](https://www.python.org/) program uses the [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) function from [SciPy](https://scipy.org/) to calculate the Pearson correlation coefficients and corresponding p values to describe the correlation between two sets of features. These values are then used to generate a Correlation Heatmap with [seaborn](https://seaborn.pydata.org/) and [matplotlib](https://matplotlib.org/). 
 
 # User Instructions
 
