@@ -75,7 +75,7 @@ This program creates three outputs.
 
 These files will be added to a folder called `corr_plot_outputs` which will be created in the same folder as the one in which you've saved the executable file. 
 
-On the heatmap, the colour of a block indicates the strength of a correlation (Pearson Correlation Coefficient) and the number/absence of `*`s is indicative of the p value.
+On the heatmap, the colour of a block indicates the strength of a correlation (Pearson Correlation Coefficient) and the number/absence of asterisks is indicative of the p value.
 
 * No `*` means the p value is above 0.05.
 
