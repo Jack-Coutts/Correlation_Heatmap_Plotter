@@ -10,7 +10,6 @@ import sys
 
 # Set the base directory
 def get_base_dir():
-
     # Determine the directory of the executable or script
     if getattr(sys, "frozen", False):
         # Running as a PyInstaller bundle
@@ -24,7 +23,6 @@ def get_base_dir():
 
 # Get the file path of a user specified file and check it exists
 def file_checker(file_type: str, base_dir: Path) -> Path:
-
     file_path = None
     while file_path is None:
         file_path = Path(
@@ -43,10 +41,11 @@ def file_checker(file_type: str, base_dir: Path) -> Path:
 
 # Get the two data files which will correspond to each axis of the heatmap
 def get_data(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame, str, str]:
-
     metadata = file_checker("x axis data e.g.metadata.xlxs", base_dir)
     x_axis_label = input("Please enter the x axis label: ")
-    measured_data = file_checker("y axis data e.g.measured_data.xlxs", base_dir)
+    measured_data = file_checker(
+        "y axis data e.g.measured_data.xlxs", base_dir
+    )
     y_axis_label = input("Please enter the y axis label: ")
 
     metadata_df = pd.read_excel(metadata)
@@ -59,9 +58,10 @@ def get_data(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame, str, str]:
 def check_sample_match(
     metadata_df: pd.DataFrame, measured_data_df: pd.DataFrame
 ):
-
     meta_sample_col = metadata_df.iloc[:, 0]  # Select the first column
-    measured_sample_col = measured_data_df.iloc[:, 0]  # Select the first column
+    measured_sample_col = measured_data_df.iloc[
+        :, 0
+    ]  # Select the first column
 
     are_columns_equal = meta_sample_col.equals(measured_sample_col)
 
@@ -98,7 +98,9 @@ def calculate_correlation_and_pvalue(
             if (
                 len(merged) > 1
             ):  # Ensure there are enough data points to calculate correlation
-                corr, p_value = pearsonr(merged[data_col_1], merged[meta_col_1])
+                corr, p_value = pearsonr(
+                    merged[data_col_1], merged[meta_col_1]
+                )
                 correlation_df.loc[data_col_1, meta_col_1] = corr
                 p_value_df.loc[data_col_1, meta_col_1] = p_value
             else:
@@ -121,7 +123,6 @@ def calculate_correlation_and_pvalue(
 
 # Create p value indicators using *'s
 def p_val_indicator(p_value_df: pd.DataFrame) -> pd.DataFrame:
-
     # Convert all values to numeric types
     p_value_df = p_value_df.apply(pd.to_numeric, errors="coerce")
 
@@ -131,7 +132,11 @@ def p_val_indicator(p_value_df: pd.DataFrame) -> pd.DataFrame:
             lambda y: (
                 "***"
                 if y <= 0.001
-                else "**" if y <= 0.01 else "*" if y <= 0.05 else ""
+                else "**"
+                if y <= 0.01
+                else "*"
+                if y <= 0.05
+                else ""
             )
         )
     )
@@ -147,8 +152,7 @@ def plot_pearson_correlation_heatmap(
     y_axis_label: str,
     base_dir: Path,
 ):
-
-    # Dynamically adjust the figure size based on the number of rows and columns
+    # Dynamically adjust the figure size based on the number of rows/columns
     num_rows, num_cols = correlation_df.shape
     col_size = num_cols * 0.8
     row_size = num_rows * 0.8
@@ -158,6 +162,11 @@ def plot_pearson_correlation_heatmap(
         row_size if row_size > 8 else 8,
     )  # Adjust the scaling factor as needed
 
+    # Find largest absolute correlation to set a symmetrical colour scale
+    max_corr_value = max(
+        abs(correlation_df.min().min()), abs(correlation_df.max().max())
+    )
+
     plt.figure(figsize=figsize)
     heatmap = sns.heatmap(
         correlation_df,
@@ -166,6 +175,8 @@ def plot_pearson_correlation_heatmap(
         fmt="",
         linewidths=0.5,
         annot_kws={"size": 12},
+        vmin=-max_corr_value,  # Center the colormap at 0
+        vmax=max_corr_value,
     )
 
     # Label the axes
@@ -189,7 +200,6 @@ def plot_pearson_correlation_heatmap(
 
 # Run the script
 def main():
-
     # Your program logic here
     print("Program is running...")
 
