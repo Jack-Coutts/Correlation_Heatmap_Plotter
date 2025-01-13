@@ -1,14 +1,14 @@
 # Correlation Heatmap Plotter
 
-This [Python](https://www.python.org/) program uses the [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) function from [SciPy](https://scipy.org/) to calculate the Pearson correlation coefficients and corresponding p values to describe the correlation between two sets of features. These values are then used to generate a Correlation Heatmap with [seaborn](https://seaborn.pydata.org/) and [matplotlib](https://matplotlib.org/). 
+This [Python](https://www.python.org/) program uses the [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) function from [SciPy](https://scipy.org/) to calculate the Pearson correlation coefficients and corresponding p values to describe the correlation between two sets of features. These values are then used to generate a Correlation Heatmap with [seaborn](https://seaborn.pydata.org/) and [matplotlib](https://matplotlib.org/).
 
 # User Instructions
 
 ### Downloading the Program
 
-* On Mac click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.0.0/corr_plot_mac_exe) link to download the executable file. 
+* On Mac click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.0.1/corr_plot_mac_exe) link to download the executable file.
 
-* On Windows click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.0.0/corr_plot_windows.exe) link to download the executable file.
+* On Windows click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.0.1/corr_plot_windows.exe) link to download the executable file.
 
 NOTE: Both of these files can also be found in the GitHub release or in the `dist/` directory in this repository.
 
@@ -16,7 +16,7 @@ NOTE: Both of these files can also be found in the GitHub release or in the `dis
 
 ### Input Data
 
-This program works with two single-sheet excel files (.xlsx format) which both have an identical first column. This first column should be an identifier for each sample/individual with the remaining columns being different features/measurements/metadata associated with the sample/individual. 
+This program works with two single-sheet excel files (.xlsx format) which both have an identical first column. This first column should be an identifier for each sample/individual with the remaining columns being different features/measurements/metadata associated with the sample/individual.
 
 Take the two dummy spreadsheets below as examples:
 
@@ -46,7 +46,7 @@ There are three different heatmaps that could be produced using these two spread
 
 1. How vitamins are correlated with each other by entering spreadsheet2 as both of the input spreadsheets.
 2. How the metadata (age, height, etc) are correlated with each other by entering spreadsheet1 as both of the input spreadsheets.
-3. How the vitamin levels correlate with the metadata but entering spreadsheet1 as the first dataset and spreadhseet2 as the second (or the other way around). 
+3. How the vitamin levels correlate with the metadata but entering spreadsheet1 as the first dataset and spreadhseet2 as the second (or the other way around).
 
 **IMPORTANT: It is essential that the first column is always identical across both of the spreadsheets.**
 
@@ -58,7 +58,7 @@ There are three different heatmaps that could be produced using these two spread
 
 3. Next, you'll be asked for the x axis label to be displayed on the heatmap.
 
-4. Then, you'll be asked for the data you want on the y axis. This works in the same way as for the x axis. 
+4. Then, you'll be asked for the data you want on the y axis. This works in the same way as for the x axis.
 
 5. Similarly, you will then be asked for the y axis label.
 
@@ -67,13 +67,13 @@ There are three different heatmaps that could be produced using these two spread
 
 ### Outputs
 
-This program creates three outputs. 
+This program creates three outputs.
 
 1. A correlation heatmap in a `.png` file.
 2. A `.csv` file containing all of the Pearson Correlation Coefficients calculated by the `pearsonr` function used for the heatmap.
-3. A `.csv` file containing all of the p values calculated by the `pearsonr` function used for the heatmap. 
+3. A `.csv` file containing all of the p values calculated by the `pearsonr` function used for the heatmap.
 
-These files will be added to a folder called `corr_plot_outputs` which will be created in the same folder as the one in which you've saved the executable file. 
+These files will be added to a folder called `corr_plot_outputs` which will be created in the same folder as the one in which you've saved the executable file.
 
 On the heatmap, the colour of a block indicates the strength of a correlation (Pearson Correlation Coefficient) and the number/absence of asterisks is indicative of the p value.
 
@@ -97,7 +97,7 @@ On the heatmap, the colour of a block indicates the strength of a correlation (P
 * [SciPy](https://scipy.org/)
 * [seaborn](https://seaborn.pydata.org/)
 * [openpyxl](https://openpyxl.readthedocs.io/en/stable/)
-* [PyInstaller](https://pyinstaller.org/en/stable/) 
+* [PyInstaller](https://pyinstaller.org/en/stable/)
 
 
 ### Directory Structure
