@@ -2,10 +2,11 @@ from typing import Tuple
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, false_discovery_control
 from pathlib import Path
 import os
 import sys
+import numpy as np
 
 
 # Set the base directory
@@ -18,7 +19,26 @@ def get_base_dir():
         # Running as a normal script
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
+    # Create output directory
+    if not os.path.exists(f"{base_dir}/corr_plot_outputs/"):
+        os.makedirs(f"{base_dir}/corr_plot_outputs/")
+        print("Output folder created.")
+
     return base_dir
+
+
+# Ask if user wants false discovery rate correction applied to p values
+def ask_FDR_correction():
+    answer = input(
+        "Do you want Benjamini-Hochberg false discovery applied to p-values? (y/n): "
+    )
+    if answer == "y":
+        return True
+    elif answer == "n":
+        return False
+    else:
+        print("Please enter y or n!")
+        return ask_FDR_correction()
 
 
 # Get the file path of a user specified file and check it exists
@@ -43,9 +63,7 @@ def file_checker(file_type: str, base_dir: Path) -> Path:
 def get_data(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame, str, str]:
     metadata = file_checker("x axis data e.g.metadata.xlxs", base_dir)
     x_axis_label = input("Please enter the x axis label: ")
-    measured_data = file_checker(
-        "y axis data e.g.measured_data.xlxs", base_dir
-    )
+    measured_data = file_checker("y axis data e.g.measured_data.xlxs", base_dir)
     y_axis_label = input("Please enter the y axis label: ")
 
     metadata_df = pd.read_excel(metadata)
@@ -59,9 +77,7 @@ def check_sample_match(
     metadata_df: pd.DataFrame, measured_data_df: pd.DataFrame
 ):
     meta_sample_col = metadata_df.iloc[:, 0]  # Select the first column
-    measured_sample_col = measured_data_df.iloc[
-        :, 0
-    ]  # Select the first column
+    measured_sample_col = measured_data_df.iloc[:, 0]  # Select the first column
 
     are_columns_equal = meta_sample_col.equals(measured_sample_col)
 
@@ -75,7 +91,10 @@ def check_sample_match(
 
 # Calculate the pearson correlation and corresponding p values
 def calculate_correlation_and_pvalue(
-    measured_data_df: pd.DataFrame, metadata_df: pd.DataFrame, base_dir: Path
+    measured_data_df: pd.DataFrame,
+    metadata_df: pd.DataFrame,
+    base_dir: Path,
+    fdr: bool,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     # Initialize DataFrames with appropriate indices and columns
     correlation_df = pd.DataFrame(
@@ -98,9 +117,7 @@ def calculate_correlation_and_pvalue(
             if (
                 len(merged) > 1
             ):  # Ensure there are enough data points to calculate correlation
-                corr, p_value = pearsonr(
-                    merged[data_col_1], merged[meta_col_1]
-                )
+                corr, p_value = pearsonr(merged[data_col_1], merged[meta_col_1])
                 correlation_df.loc[data_col_1, meta_col_1] = corr
                 p_value_df.loc[data_col_1, meta_col_1] = p_value
             else:
@@ -110,14 +127,38 @@ def calculate_correlation_and_pvalue(
     # Replace None with NaN and convert to float
     correlation_df = correlation_df.apply(pd.to_numeric, errors="coerce")
 
-    os.makedirs(f"{base_dir}/corr_plot_outputs/", exist_ok=True)
-
     correlation_df.to_csv(f"{base_dir}/corr_plot_outputs/correlation_data.csv")
     print("Created correlation_plot_csv.")
 
-    p_value_df.to_csv(f"{base_dir}/corr_plot_outputs/p_value_data.csv")
-    print("Created p_value_data_csv.")
+    # Apply False Discovery Control to P values
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.false_discovery_control.html
 
+    # Copy p-value df to replace p values with q values
+    corrected_p_values_df = p_value_df.copy()
+    # check if user has specified false discovery rate correction
+    if fdr:
+        for col in p_value_df.columns:
+            p_values = p_value_df[col].values  # convert to array
+            # convert to basic float values np.floats trigger error
+            p_values = list(map(float, p_values))
+            # Check p values are between 0 & 1
+            assert all(
+                0 < x < 1 for x in p_values
+            ), f"Not all values are between 0 and 1 (inclusive) in column {col}"
+            # Apply false discovery correction
+            corrected_p_values = false_discovery_control(p_values, method="bh")
+            # Replace p values with the new q values
+            corrected_p_values_df[col] = corrected_p_values
+        # Create q value csv file
+        corrected_p_values_df.to_csv(
+            f"{base_dir}/corr_plot_outputs/q_value_data.csv"
+        )
+        print("Created q_value_data_csv.")
+        # return q value df instead of p value df
+        return correlation_df, corrected_p_values_df
+
+    # if no false discovery correction applied output p values
+    p_value_df.to_csv(f"{base_dir}/corr_plot_outputs/p_value_data.csv")
     return correlation_df, p_value_df
 
 
@@ -132,11 +173,7 @@ def p_val_indicator(p_value_df: pd.DataFrame) -> pd.DataFrame:
             lambda y: (
                 "***"
                 if y <= 0.001
-                else "**"
-                if y <= 0.01
-                else "*"
-                if y <= 0.05
-                else ""
+                else "**" if y <= 0.01 else "*" if y <= 0.05 else ""
             )
         )
     )
@@ -204,6 +241,8 @@ def main():
     print("Program is running...")
 
     base_dir = get_base_dir()
+    fdr = ask_FDR_correction()
+    print(fdr)
 
     metadata_df, measured_data_df, x_axis_label, y_axis_label = get_data(
         base_dir
@@ -212,7 +251,7 @@ def main():
     check_sample_match(metadata_df, measured_data_df)
 
     correlation_df, p_value_df = calculate_correlation_and_pvalue(
-        measured_data_df, metadata_df, base_dir
+        measured_data_df, metadata_df, base_dir, fdr=fdr
     )
 
     p_value_annotations = p_val_indicator(p_value_df)
