@@ -1,14 +1,14 @@
 # Correlation Heatmap Plotter
 
-This [Python](https://www.python.org/) program uses the [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) function from [SciPy](https://scipy.org/) to calculate the Pearson correlation coefficients and corresponding p values to describe the correlation between two sets of features. These values are then used to generate a Correlation Heatmap with [seaborn](https://seaborn.pydata.org/) and [matplotlib](https://matplotlib.org/).
+This [Python](https://www.python.org/) program uses the [pearsonr](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html) function from [SciPy](https://scipy.org/) to calculate the Pearson correlation coefficients and corresponding p values to describe the correlation between two sets of features. There is also the option to do [false discovery control](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.false_discovery_control.html) with the Benjamini-Hochberg procedure to generate q values from the aforementioned p values. These values are then used to generate a Correlation Heatmap with [seaborn](https://seaborn.pydata.org/) and [matplotlib](https://matplotlib.org/).
 
 # User Instructions
 
 ### Downloading the Program
 
-* On Mac click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.0.1/corr_plot_mac_exe) link to download the executable file.
+* On Mac click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.1.0/corr_plot_mac_exe) link to download the executable file.
 
-* On Windows click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.0.1/corr_plot_windows.exe) link to download the executable file.
+* On Windows click [this](https://github.com/Jack-Coutts/Correlation_Heatmap_plotter/releases/download/v1.1.0/corr_plot_windows.exe) link to download the executable file.
 
 NOTE: Both of these files can also be found in the GitHub release or in the `dist/` directory in this repository.
 
@@ -54,7 +54,9 @@ There are three different heatmaps that could be produced using these two spread
 
 1. To run the program, simply double click on the `corr_plot_mac_exe` or `corr_plot_windows.exe` file that you've downloaded.
 
-2. A black window should appear, and you should need to wait approximately 30 seconds for the program to load. Then, the following text will appear: `Please enter the file path of the x axis data e.g.metadata.xlsx: `. Here you should enter the file path for the data you want on the x axis of your correlation heatmap. If you placed the executable file in the same folder as your data, then your response might be `spreadsheet1.xlsx`. If you have your executable file in the `Desktop/` folder and your data had the `/Desktop/data/spreadsheet1.xlsx` file path, then you would need to enter `data/spreadsheet1.xlsx`. This is because all file paths used by this program are **relative**, absolute file paths will not work! Once you have entered the file path, press enter and the program will check the file exists at the specified file path.
+2. A black window should appear, and you should need to wait approximately 30 seconds for the program to load. You will be asked if you want to do false discovery correction, and you must answer with y or n.
+
+3. Then, the following text will appear: `Please enter the file path of the x axis data e.g.metadata.xlsx: `. Here you should enter the file path for the data you want on the x axis of your correlation heatmap. If you placed the executable file in the same folder as your data, then your response might be `spreadsheet1.xlsx`. If you have your executable file in the `Desktop/` folder and your data had the `/Desktop/data/spreadsheet1.xlsx` file path, then you would need to enter `data/spreadsheet1.xlsx`. This is because all file paths used by this program are **relative**, absolute file paths will not work! Once you have entered the file path, press enter and the program will check the file exists at the specified file path.
 
 3. Next, you'll be asked for the x axis label to be displayed on the heatmap.
 
@@ -71,19 +73,19 @@ This program creates three outputs.
 
 1. A correlation heatmap in a `.png` file.
 2. A `.csv` file containing all of the Pearson Correlation Coefficients calculated by the `pearsonr` function used for the heatmap.
-3. A `.csv` file containing all of the p values calculated by the `pearsonr` function used for the heatmap.
+3. A `.csv` file containing all of the p or q values calculated by the `pearsonr` function (and optionally the false discovery correction function) used for the heatmap.
 
 These files will be added to a folder called `corr_plot_outputs` which will be created in the same folder as the one in which you've saved the executable file.
 
 On the heatmap, the colour of a block indicates the strength of a correlation (Pearson Correlation Coefficient) and the number/absence of asterisks is indicative of the p value.
 
-* No `*` means the p value is above 0.05.
+* No `*` means the p (or q) value is above 0.05.
 
-* `*` means the p value is above 0.01 and below or equal to 0.05.
+* `*` means the p (or q) value is above 0.01 and below or equal to 0.05.
 
-* `**` means the p value is above 0.001 and below or equal to 0.01.
+* `**` means the p (or q) value is above 0.001 and below or equal to 0.01.
 
-* `***` means the p value is equal to or below 0.001.
+* `***` means the p (or q) value is equal to or below 0.001.
 
 
 # Developer Instructions
