@@ -1,271 +1,215 @@
-from typing import Tuple
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from scipy.stats import pearsonr, false_discovery_control
+from __future__ import annotations
+
 from pathlib import Path
-import os
+import re
 import sys
-import numpy as np
+from typing import cast
+
+import pandas as pd
+
+from corr_plot.analysis import (
+    AnalysisSettings,
+    CensorStrategy,
+    CorrelationMethod,
+    find_censored_values,
+    find_common_group_columns,
+    read_input_file,
+    run_analysis,
+    validate_and_align_samples,
+    validate_group_values,
+)
 
 
-# Set the base directory
-def get_base_dir():
-    # Determine the directory of the executable or script
+def get_base_dir() -> Path:
+    """Return the executable directory or this module's directory."""
     if getattr(sys, "frozen", False):
-        # Running as a PyInstaller bundle
-        base_dir = os.path.dirname(sys.executable)
-    else:
-        # Running as a normal script
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Create output directory
-    if not os.path.exists(f"{base_dir}/corr_plot_outputs/"):
-        os.makedirs(f"{base_dir}/corr_plot_outputs/")
-        print("Output folder created.")
-
-    return base_dir
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
 
 
-# Ask if user wants false discovery rate correction applied to p values
-def ask_FDR_correction():
-    answer = input(
-        "Do you want Benjamini-Hochberg false discovery applied to p-values? (y/n): "
-    )
-    if answer == "y":
-        return True
-    elif answer == "n":
-        return False
-    else:
-        print("Please enter y or n!")
-        return ask_FDR_correction()
+def ask_yes_no(prompt: str) -> bool:
+    while True:
+        answer = input(prompt).strip().lower()
+        if answer in {"y", "yes"}:
+            return True
+        if answer in {"n", "no"}:
+            return False
+        print("Please enter y or n.")
 
 
-# Get the file path of a user specified file and check it exists
+def ask_choice(prompt: str, choices: tuple[str, ...], default: str) -> str:
+    options = "/".join(choices)
+    while True:
+        answer = input(f"{prompt} ({options}) [{default}]: ").strip().lower()
+        if not answer:
+            return default
+        if answer in choices:
+            return answer
+        print(f"Please choose one of: {', '.join(choices)}.")
+
+
 def file_checker(file_type: str, base_dir: Path) -> Path:
-    file_path = None
-    while file_path is None:
-        file_path = Path(
-            os.path.join(
-                base_dir,
-                Path(input(f"Please enter the path of the {file_type}: ")),
-            )
-        )
-        if file_path.is_file():  # file exists
-            print("File found.")
-            return file_path
-        else:
-            print("File not found.")
-            file_path = None
+    while True:
+        entered = Path(input(f"Please enter the path of the {file_type}: ").strip())
+        candidate = entered if entered.is_absolute() else base_dir / entered
+        candidate = candidate.resolve()
+        if candidate.is_file():
+            print(f"File found: {candidate}")
+            return candidate
+        print("File not found.")
 
 
-# Get the two data files which will correspond to each axis of the heatmap
-def get_data(base_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame, str, str]:
-    metadata = file_checker("x axis data e.g.metadata.xlxs", base_dir)
-    x_axis_label = input("Please enter the x axis label: ")
-    measured_data = file_checker("y axis data e.g.measured_data.xlxs", base_dir)
-    y_axis_label = input("Please enter the y axis label: ")
-
-    metadata_df = pd.read_excel(metadata)
-    measured_data_df = pd.read_excel(measured_data)
-
-    return metadata_df, measured_data_df, x_axis_label, y_axis_label
-
-
-# Check the first column of both dataframes is the same
-def check_sample_match(
-    metadata_df: pd.DataFrame, measured_data_df: pd.DataFrame
-):
-    meta_sample_col = metadata_df.iloc[:, 0]  # Select the first column
-    measured_sample_col = measured_data_df.iloc[:, 0]  # Select the first column
-
-    are_columns_equal = meta_sample_col.equals(measured_sample_col)
-
-    if are_columns_equal:
-        print("Sample columns match.")
-    else:
-        print("Sample columns do not match!")
-        # Exit the program
-        sys.exit("Exiting the program")
-
-
-# Calculate the pearson correlation and corresponding p values
-def calculate_correlation_and_pvalue(
-    measured_data_df: pd.DataFrame,
-    metadata_df: pd.DataFrame,
+def get_data(
     base_dir: Path,
-    fdr: bool,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    # Initialize DataFrames with appropriate indices and columns
-    correlation_df = pd.DataFrame(
-        index=measured_data_df.columns[1:], columns=metadata_df.columns[1:]
-    )
-    p_value_df = pd.DataFrame(
-        index=measured_data_df.columns[1:], columns=metadata_df.columns[1:]
-    )
-
-    for data_col_1 in measured_data_df.columns[
-        1:
-    ]:  # Exclude the first column (ID)
-        for meta_col_1 in metadata_df.columns[
-            1:
-        ]:  # Exclude the first column (ID)
-            # Drop rows with missing values
-            merged = pd.concat(
-                [measured_data_df[data_col_1], metadata_df[meta_col_1]], axis=1
-            ).dropna()
-            if (
-                len(merged) > 1
-            ):  # Ensure there are enough data points to calculate correlation
-                corr, p_value = pearsonr(merged[data_col_1], merged[meta_col_1])
-                correlation_df.loc[data_col_1, meta_col_1] = corr
-                p_value_df.loc[data_col_1, meta_col_1] = p_value
-            else:
-                correlation_df.loc[data_col_1, meta_col_1] = None
-                p_value_df.loc[data_col_1, meta_col_1] = None
-
-    # Replace None with NaN and convert to float
-    correlation_df = correlation_df.apply(pd.to_numeric, errors="coerce")
-
-    correlation_df.to_csv(f"{base_dir}/corr_plot_outputs/correlation_data.csv")
-    print("Created correlation_plot_csv.")
-
-    # Apply False Discovery Control to P values
-    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.false_discovery_control.html
-
-    # Copy p-value df to replace p values with q values
-    corrected_p_values_df = p_value_df.copy()
-    # check if user has specified false discovery rate correction
-    if fdr:
-        for col in p_value_df.columns:
-            p_values = p_value_df[col].values  # convert to array
-            # convert to basic float values np.floats trigger error
-            p_values = list(map(float, p_values))
-            # Check p values are between 0 & 1
-            assert all(
-                0 < x < 1 for x in p_values
-            ), f"Not all values are between 0 and 1 (inclusive) in column {col}"
-            # Apply false discovery correction
-            corrected_p_values = false_discovery_control(p_values, method="bh")
-            # Replace p values with the new q values
-            corrected_p_values_df[col] = corrected_p_values
-        # Create q value csv file
-        corrected_p_values_df.to_csv(
-            f"{base_dir}/corr_plot_outputs/q_value_data.csv"
-        )
-        print("Created q_value_data_csv.")
-        # return q value df instead of p value df
-        return correlation_df, corrected_p_values_df
-
-    # if no false discovery correction applied output p values
-    p_value_df.to_csv(f"{base_dir}/corr_plot_outputs/p_value_data.csv")
-    return correlation_df, p_value_df
-
-
-# Create p value indicators using *'s
-def p_val_indicator(p_value_df: pd.DataFrame) -> pd.DataFrame:
-    # Convert all values to numeric types
-    p_value_df = p_value_df.apply(pd.to_numeric, errors="coerce")
-
-    # Apply the lambda function to handle the conditions
-    p_value_annotations = p_value_df.apply(
-        lambda x: x.map(
-            lambda y: (
-                "***"
-                if y <= 0.001
-                else "**" if y <= 0.01 else "*" if y <= 0.05 else ""
-            )
-        )
-    )
-
-    return p_value_annotations
-
-
-# Plot the heatmap
-def plot_pearson_correlation_heatmap(
-    correlation_df: pd.DataFrame,
-    p_value_annotations: pd.DataFrame,
-    x_axis_label: str,
-    y_axis_label: str,
-    base_dir: Path,
-):
-    # Dynamically adjust the figure size based on the number of rows/columns
-    num_rows, num_cols = correlation_df.shape
-    col_size = num_cols * 0.8
-    row_size = num_rows * 0.8
-
-    figsize = (
-        col_size if col_size > 10 else 10,
-        row_size if row_size > 8 else 8,
-    )  # Adjust the scaling factor as needed
-
-    # Find largest absolute correlation to set a symmetrical colour scale
-    max_corr_value = max(
-        abs(correlation_df.min().min()), abs(correlation_df.max().max())
-    )
-
-    plt.figure(figsize=figsize)
-    heatmap = sns.heatmap(
-        correlation_df,
-        annot=p_value_annotations,
-        cmap="coolwarm",
-        fmt="",
-        linewidths=0.5,
-        annot_kws={"size": 12},
-        vmin=-max_corr_value,  # Center the colormap at 0
-        vmax=max_corr_value,
-    )
-
-    # Label the axes
-    plt.xlabel(x_axis_label, labelpad=10)
-    plt.ylabel(y_axis_label)
-
-    # Label the color scale
-    cbar = heatmap.collections[0].colorbar
-    cbar.set_label("Pearson Correlation Coefficient")
-
-    # Adjust the layout to ensure the note is visible
-    plt.subplots_adjust(bottom=0.1, left=0.2)
-
-    plt.title("Pearson Correlation Heatmap")
-    plt.savefig(
-        f"{base_dir}/corr_plot_outputs/pearson_corr_heatmap.png",
-        bbox_inches="tight",
-    )
-    print("Heatmap Plotted Successfully.")
-
-
-# Run the script
-def main():
-    # Your program logic here
-    print("Program is running...")
-
-    base_dir = get_base_dir()
-    fdr = ask_FDR_correction()
-    print(fdr)
-
-    metadata_df, measured_data_df, x_axis_label, y_axis_label = get_data(
-        base_dir
-    )
-
-    check_sample_match(metadata_df, measured_data_df)
-
-    correlation_df, p_value_df = calculate_correlation_and_pvalue(
-        measured_data_df, metadata_df, base_dir, fdr=fdr
-    )
-
-    p_value_annotations = p_val_indicator(p_value_df)
-
-    plot_pearson_correlation_heatmap(
-        correlation_df,
-        p_value_annotations,
+) -> tuple[pd.DataFrame, pd.DataFrame, str, str, Path, Path]:
+    x_path = file_checker("x-axis data (.csv or .xlsx)", base_dir)
+    x_axis_label = input("Please enter the x-axis label: ").strip() or "X features"
+    y_path = file_checker("y-axis data (.csv or .xlsx)", base_dir)
+    y_axis_label = input("Please enter the y-axis label: ").strip() or "Y features"
+    return (
+        read_input_file(x_path),
+        read_input_file(y_path),
         x_axis_label,
         y_axis_label,
-        base_dir,
+        x_path,
+        y_path,
     )
 
-    # Exit the program
-    sys.exit("Exiting the program")
+
+def choose_censor_strategy(
+    x_data: pd.DataFrame, y_data: pd.DataFrame
+) -> CensorStrategy:
+    censored = {
+        "x-axis": find_censored_values(x_data),
+        "y-axis": find_censored_values(y_data),
+    }
+    total = sum(sum(columns.values()) for columns in censored.values())
+    if not total:
+        return "error"
+
+    print(f"Detected {total} left-censored value(s), such as '<2.25': {censored}")
+    print(
+        "Choose explicitly: error; omit; use detection limit; use half the limit; "
+        "or use limit/sqrt(2). The correct choice depends on the assay plan."
+    )
+    answer = ask_choice(
+        "Censor handling",
+        ("error", "omit", "limit", "half_limit", "lod_sqrt2"),
+        "error",
+    )
+    return cast(CensorStrategy, answer)
+
+
+def _safe_directory_name(value: object) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+    return slug or "unnamed_group"
+
+
+def build_cohorts(
+    x_data: pd.DataFrame, y_data: pd.DataFrame
+) -> list[tuple[str, pd.DataFrame, pd.DataFrame]]:
+    group_columns = find_common_group_columns(x_data, y_data)
+    if group_columns is None:
+        return [("all_samples", x_data, y_data)]
+
+    validate_group_values(x_data, y_data, group_columns)
+    x_group, _ = group_columns
+    groups = x_data[x_group].dropna().unique().tolist()
+    if len(groups) < 2:
+        return [("all_samples", x_data, y_data)]
+
+    print(f"Detected common grouping variable with levels: {groups}")
+    mode = ask_choice(
+        "Analysis cohorts",
+        ("pooled", "stratified", "both"),
+        "stratified",
+    )
+
+    cohorts: list[tuple[str, pd.DataFrame, pd.DataFrame]] = []
+    if mode in {"pooled", "both"}:
+        print(
+            "Warning: pooled correlations are unadjusted and may be confounded by group."
+        )
+        cohorts.append(("all_groups_unadjusted", x_data, y_data))
+    if mode in {"stratified", "both"}:
+        for group in groups:
+            mask = x_data[x_group].eq(group)
+            cohorts.append(
+                (
+                    _safe_directory_name(group),
+                    x_data.loc[mask].reset_index(drop=True),
+                    y_data.loc[mask].reset_index(drop=True),
+                )
+            )
+    return cohorts
+
+
+def main() -> None:
+    print("Correlation Heatmap Plotter")
+    base_dir = get_base_dir()
+    x_data, y_data, x_label, y_label, x_path, y_path = get_data(base_dir)
+    x_data, y_data = validate_and_align_samples(x_data, y_data)
+
+    method = cast(
+        CorrelationMethod,
+        ask_choice(
+            "Correlation method",
+            ("pearson", "spearman"),
+            "pearson",
+        ),
+    )
+    apply_fdr = ask_yes_no(
+        "Apply global Benjamini-Hochberg false-discovery correction? (y/n): "
+    )
+    censor_strategy = choose_censor_strategy(x_data, y_data)
+    minimum_samples = int(
+        ask_choice(
+            "Minimum pairwise sample size",
+            ("3", "5", "10"),
+            "3",
+        )
+    )
+
+    settings = AnalysisSettings(
+        correlation_method=method,
+        minimum_samples=minimum_samples,
+        apply_fdr=apply_fdr,
+        fdr_scope="global",
+        censor_strategy=censor_strategy,
+    )
+    cohorts = build_cohorts(x_data, y_data)
+    output_root = (
+        base_dir / "outputs"
+        if getattr(sys, "frozen", False)
+        else Path(__file__).resolve().parents[1] / "outputs"
+    )
+
+    for cohort_name, cohort_x, cohort_y in cohorts:
+        output_directory = (
+            output_root
+            if len(cohorts) == 1
+            else output_root / cohort_name
+        )
+        result = run_analysis(
+            cohort_x,
+            cohort_y,
+            output_directory=output_directory,
+            x_axis_label=x_label,
+            y_axis_label=y_label,
+            settings=settings,
+            cohort_name=cohort_name,
+        )
+        valid_tests = int(result.p_values.notna().sum().sum())
+        print(
+            f"Created {cohort_name}: {valid_tests} valid tests in "
+            f"{output_directory}"
+        )
+
+    print(
+        "Analysis complete. Review analysis_metadata.json for preprocessing and "
+        "interpretation details."
+    )
+    print(f"Inputs: {x_path} and {y_path}")
 
 
 if __name__ == "__main__":
